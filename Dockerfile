@@ -2,8 +2,6 @@ ARG BASE_IMAGE=louislam/uptime-kuma:base2
 
 ############################################
 # Build in Golang
-# Run npm run build-healthcheck-armv7 in the host first, otherwise it will be super slow where it is building the armv7 healthcheck
-# Check file: builder-go.dockerfile
 ############################################
 FROM louislam/uptime-kuma:builder-go AS build_healthcheck
 
@@ -11,6 +9,11 @@ FROM louislam/uptime-kuma:builder-go AS build_healthcheck
 # Build in Node.js
 ############################################
 FROM louislam/uptime-kuma:base2 AS build
+
+# 修复权限问题：确保 /app 目录属于 node 用户
+USER root
+RUN mkdir -p /app && chown -R node:node /app
+
 USER node
 WORKDIR /app
 
@@ -36,6 +39,7 @@ ENV UPTIME_KUMA_IS_CONTAINER=1
 # Copy app files from build layer
 COPY --chown=node:node --from=build /app /app
 
+# 保持原有端口 3001
 EXPOSE 3001
 HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 CMD extra/healthcheck
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
@@ -107,10 +111,6 @@ ARG FILE=$PLATFORM-$TARGETARCH-$VERSION.tar.gz
 ARG DIST=dist.tar.gz
 
 RUN chmod +x /app/extra/upload-github-release-asset.sh
-
-# Full Build
-# RUN tar -zcvf $FILE app
-# RUN /app/extra/upload-github-release-asset.sh github_api_token=$GITHUB_TOKEN owner=louislam repo=uptime-kuma tag=$VERSION filename=$FILE
 
 # Dist only
 RUN cd /app && tar -zcvf $DIST dist
