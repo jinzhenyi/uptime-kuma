@@ -10,9 +10,10 @@ FROM louislam/uptime-kuma:builder-go AS build_healthcheck
 ############################################
 FROM louislam/uptime-kuma:base2 AS build
 
-# 修复权限问题：确保 /app 目录属于 node 用户
+# 以 root 身份创建所需目录并设置权限
 USER root
 RUN mkdir -p /app && chown -R node:node /app
+RUN mkdir -p /app/data && chown node:node /app/data   # 预先创建 data 目录
 
 USER node
 WORKDIR /app
@@ -24,7 +25,7 @@ COPY --chown=node:node package-lock.json package-lock.json
 RUN npm ci --omit=dev
 COPY . .
 COPY --chown=node:node --from=build_healthcheck /app/extra/healthcheck /app/extra/healthcheck
-RUN mkdir ./data
+# 不再需要 RUN mkdir ./data，因为已经预先创建好了
 
 ############################################
 # ⭐ Main Image
@@ -39,7 +40,6 @@ ENV UPTIME_KUMA_IS_CONTAINER=1
 # Copy app files from build layer
 COPY --chown=node:node --from=build /app /app
 
-# 保持原有端口 3001
 EXPOSE 3001
 HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=5 CMD extra/healthcheck
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
